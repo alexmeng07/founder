@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemoProjects } from '../context/DemoProjectsContext';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 import { PROJECT_TAGS } from '../data/demoData';
 
-const ROLES = ['Frontend', 'Backend', 'AI/ML', 'Designer', 'PM', 'Pitcher'];
 const GOALS = [
   { value: 'learn', label: 'Learn' },
   { value: 'network', label: 'Network' },
@@ -16,16 +16,18 @@ export function BecomeFounder() {
   const { addDemoProject } = useDemoProjects();
   const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
     techStack: [],
     rolesNeeded: [],
     goal: 'startup',
-    tags: ['project'],
+    tags: [],
     teamSizeTarget: 4,
   });
   const [techInput, setTechInput] = useState('');
+  const [rolesInput, setRolesInput] = useState('');
 
   const addTech = () => {
     const t = techInput.trim();
@@ -39,11 +41,16 @@ export function BecomeFounder() {
     setForm((f) => ({ ...f, techStack: f.techStack.filter((x) => x !== t) }));
   };
 
-  const toggleRole = (r) => {
-    setForm((f) => ({
-      ...f,
-      rolesNeeded: f.rolesNeeded.includes(r) ? f.rolesNeeded.filter((x) => x !== r) : [...f.rolesNeeded, r],
-    }));
+  const addRole = () => {
+    const r = rolesInput.trim();
+    if (r && !form.rolesNeeded.includes(r)) {
+      setForm((f) => ({ ...f, rolesNeeded: [...f.rolesNeeded, r] }));
+      setRolesInput('');
+    }
+  };
+
+  const removeRole = (r) => {
+    setForm((f) => ({ ...f, rolesNeeded: f.rolesNeeded.filter((x) => x !== r) }));
   };
 
   const toggleTag = (t) => {
@@ -53,20 +60,54 @@ export function BecomeFounder() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    addDemoProject({
-      title: form.title.trim(),
-      description: form.description || '',
-      techStack: form.techStack,
-      rolesNeeded: form.rolesNeeded,
-      goal: form.goal,
-      tags: form.tags,
-      teamSizeTarget: form.teamSizeTarget,
-    });
-    setSubmitted(true);
-    navigate('/feed');
+    setSubmitting(true);
+    try {
+      if (user) {
+        const { data } = await api.post('/projects', {
+          title: form.title.trim(),
+          description: form.description || '',
+          techStack: form.techStack,
+          rolesNeeded: form.rolesNeeded,
+          goal: form.goal,
+          tags: form.tags,
+          teamSizeTarget: form.teamSizeTarget,
+        });
+        if (data?.success && data?.data?.projectId) {
+          setSubmitted(true);
+          navigate('/feed', { state: { highlightProjectId: data.data.projectId } });
+          return;
+        }
+      }
+      const newProject = addDemoProject({
+        title: form.title.trim(),
+        description: form.description || '',
+        techStack: form.techStack,
+        rolesNeeded: form.rolesNeeded,
+        goal: form.goal,
+        tags: form.tags,
+        teamSizeTarget: form.teamSizeTarget,
+      });
+      setSubmitted(true);
+      navigate('/feed', { state: { highlightProjectId: newProject.projectId } });
+    } catch (err) {
+      console.error(err);
+      const newProject = addDemoProject({
+        title: form.title.trim(),
+        description: form.description || '',
+        techStack: form.techStack,
+        rolesNeeded: form.rolesNeeded,
+        goal: form.goal,
+        tags: form.tags,
+        teamSizeTarget: form.teamSizeTarget,
+      });
+      setSubmitted(true);
+      navigate('/feed', { state: { highlightProjectId: newProject.projectId } });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -136,21 +177,39 @@ export function BecomeFounder() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Roles needed</label>
-            <div className="flex flex-wrap gap-2">
-              {ROLES.map((r) => (
-                <button
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Roles needed</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={rolesInput}
+                onChange={(e) => setRolesInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRole())}
+                className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-purple-100 text-black placeholder:text-gray-400 focus:border-founder-purple outline-none"
+                placeholder="e.g. frontend, ML engineer..."
+              />
+              <button
+                type="button"
+                onClick={addRole}
+                className="px-4 py-3 rounded-xl bg-founder-purple text-white font-medium hover:bg-founder-purpleLight transition-colors"
+              >
+                Add
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {form.rolesNeeded.map((r) => (
+                <span
                   key={r}
-                  type="button"
-                  onClick={() => toggleRole(r)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                    form.rolesNeeded.includes(r)
-                      ? 'bg-founder-purple text-white shadow-md shadow-founder-purple/30'
-                      : 'bg-purple-50 text-gray-600 hover:bg-founder-purple/10 hover:text-founder-purple border border-purple-100'
-                  }`}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-founder-purple/10 text-founder-purple text-sm font-medium"
                 >
                   {r}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRole(r)}
+                    className="text-founder-purple/70 hover:text-founder-purple"
+                  >
+                    ×
+                  </button>
+                </span>
               ))}
             </div>
           </div>
@@ -207,9 +266,10 @@ export function BecomeFounder() {
           </div>
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-founder-purple to-founder-purpleLight text-white font-semibold hover:shadow-lg hover:shadow-founder-purple/30 transition-all"
+            disabled={submitting}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-founder-purple to-founder-purpleLight text-white font-semibold hover:shadow-lg hover:shadow-founder-purple/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Submit proposal
+            {submitting ? 'Submitting…' : 'Submit proposal'}
           </button>
         </form>
       </div>

@@ -10,7 +10,7 @@ export function DemoProjectsProvider({ children }) {
   const addDemoProject = useCallback((project) => {
     const newProject = {
       ...project,
-      tags: project.tags || ['project'],
+      tags: project.tags || [],
       projectId: `demo-user-${Date.now()}`,
       ownerId: user?.userId || 'demo-user',
       ownerName: user?.name || 'You',

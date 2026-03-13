@@ -39,13 +39,24 @@ export function ProjectCard({ project, onLike }) {
     .toUpperCase()
     .slice(0, 2);
 
+  const imageUrl = project.imageUrl || project.coverImageUrl;
+
   return (
     <article className="rounded-2xl bg-white border border-purple-100 overflow-hidden shadow-sm hover:shadow-md hover:shadow-founder-purple/5 transition-all duration-300 animate-fade-in">
+      {imageUrl && (
+        <div className="aspect-[5/3] w-full overflow-hidden bg-gray-100">
+          <img
+            src={imageUrl}
+            alt=""
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
       <div className="p-5">
         <div className="flex justify-between items-start gap-3">
           <h3 className="font-bold text-lg text-black flex-1">{project.title}</h3>
           <div className="flex gap-1 flex-shrink-0">
-            {(project.tags || [project.goal]).slice(0, 2).map((t) => (
+            {(project.tags || [project.goal]).filter((t) => t && t !== 'project').slice(0, 2).map((t) => (
               <span key={t} className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-founder-purple">
                 {GOAL_LABELS[t] || t}
               </span>

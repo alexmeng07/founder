@@ -1,18 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { useSpring, animated } from 'react-spring';
+import { useState, useEffect } from 'react';
 import SkillTag from './SkillTag';
 import { getAvatarViewUrl } from '../utils/api';
 
 const UOFT_LOGO_URL = '/uoft-logo.svg';
 
-export function SwipeCard({ user, onSwipe, disabled }) {
-  const [spring, api] = useSpring(() => ({
-    x: 0,
-    rotate: 0,
-    config: { tension: 300, friction: 30 },
-  }));
+export function SwipeCard({ user, onSwipe, triggerSwipe }) {
+  const [x, setX] = useState(0);
+  const [rotate, setRotate] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState(null);
-  const dragStart = useRef({ x: 0, clientX: 0 });
 
   useEffect(() => {
     if (user?.avatarS3Key) {
@@ -20,40 +15,17 @@ export function SwipeCard({ user, onSwipe, disabled }) {
     }
   }, [user?.avatarS3Key]);
 
-  const handlePointerDown = (e) => {
-    if (disabled) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragStart.current = { x: spring.x.get(), clientX: e.clientX };
-  };
-
-  const handlePointerMove = (e) => {
-    if (disabled) return;
-    const dx = e.clientX - dragStart.current.clientX;
-    const newX = dragStart.current.x + dx;
-    const rotate = Math.min(Math.max(newX / 12, -25), 25);
-    api.start({ x: newX, rotate, immediate: true });
-  };
-
-  const handlePointerUp = (e) => {
-    if (disabled) return;
-    e.currentTarget.releasePointerCapture(e.pointerId);
-    const dx = e.clientX - dragStart.current.clientX;
-    const currentX = dragStart.current.x + dx;
-    const threshold = 80;
-    if (Math.abs(currentX) > threshold) {
-      const dir = currentX > 0 ? 'right' : 'left';
-      const exitX = dir === 'right' ? 400 : -400;
-      const exitRotate = dir === 'right' ? 30 : -30;
-      api.start({
-        x: exitX,
-        rotate: exitRotate,
-        config: { tension: 180, friction: 22 },
-        onRest: () => onSwipe(dir),
-      });
-    } else {
-      api.start({ x: 0, rotate: 0, config: { tension: 280, friction: 28 } });
-    }
-  };
+  useEffect(() => {
+    if (!triggerSwipe) return;
+    const { animateDir, choice } = triggerSwipe;
+    const exitX = animateDir === 'left' ? -400 : 400;
+    const exitRotate = animateDir === 'left' ? -30 : 30;
+    setX(exitX);
+    setRotate(exitRotate);
+    const timer = setTimeout(() => onSwipe(choice), 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerSwipe]);
 
   const initials = (user?.name || '?')
     .split(' ')
@@ -63,17 +35,13 @@ export function SwipeCard({ user, onSwipe, disabled }) {
     .slice(0, 2);
 
   return (
-    <animated.div
-      className="absolute left-1/2 top-0 w-[360px] -ml-[180px] rounded-2xl overflow-hidden touch-none select-none cursor-grab active:cursor-grabbing"
+    <div
+      className="absolute left-1/2 top-0 w-[360px] -ml-[180px] rounded-2xl overflow-hidden touch-none select-none"
       style={{
         boxShadow: '0 12px 40px rgba(107, 33, 168, 0.2)',
-        x: spring.x,
-        rotate: spring.rotate,
+        transform: `translateX(${x}px) rotate(${rotate}deg)`,
+        transition: 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
       }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
     >
       <div className="aspect-[3/4] flex flex-col bg-gradient-to-b from-purple-100 via-white to-amber-50/80 border-2 border-purple-200">
         <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-purple-100 to-pink-50 p-8 relative">
@@ -119,6 +87,6 @@ export function SwipeCard({ user, onSwipe, disabled }) {
           )}
         </div>
       </div>
-    </animated.div>
+    </div>
   );
 }

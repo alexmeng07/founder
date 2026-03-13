@@ -7,57 +7,54 @@ export default function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 h-16 bg-white/98 backdrop-blur-md border-b border-purple-100 flex items-center justify-between px-4 shadow-sm shadow-founder-purple/10">
-      <Link to="/" className="text-xl font-extrabold text-founder-purple tracking-tight font-logo hover:text-founder-purpleLight transition-all hover:scale-105">
+      <Link to="/" state={{ fromLogo: true }} className="text-xl font-extrabold text-founder-purple tracking-tight font-logo hover:text-founder-purpleLight transition-all hover:scale-105">
         founder.
       </Link>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Link
           to="/become-founder"
           className="px-4 py-2 rounded-full bg-gradient-to-r from-founder-purple to-founder-purpleLight text-white text-sm font-semibold hover:shadow-lg hover:shadow-founder-purple/30 transition-all"
         >
           Become a founder.
         </Link>
-        <Link
-          to="/feed"
-          className={`text-sm ${loc.pathname === '/feed' ? 'text-founder-purple font-medium' : 'text-gray-500 hover:text-founder-purple'}`}
-        >
-          Feed
-        </Link>
         {user ? (
           <>
             <Link
+              to="/feed"
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/feed' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              Feed
+            </Link>
+            <Link
               to="/swipe"
-              className={`text-sm ${loc.pathname === '/swipe' ? 'text-founder-purple font-medium' : 'text-gray-500 hover:text-founder-purple'}`}
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/swipe' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               Swipe
             </Link>
             <Link
-              to="/create-project"
-              className={`text-sm ${loc.pathname === '/create-project' ? 'text-founder-purple font-medium' : 'text-gray-500 hover:text-founder-purple'}`}
-            >
-              Post
-            </Link>
-            <Link
               to="/profile"
-              className={`text-sm ${loc.pathname === '/profile' ? 'text-founder-purple font-medium' : 'text-gray-500 hover:text-founder-purple'}`}
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/profile' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               Profile
             </Link>
             <Link
               to="/messages"
-              className={`text-sm ${loc.pathname === '/messages' ? 'text-founder-purple font-medium' : 'text-gray-500 hover:text-founder-purple'}`}
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/messages' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               Messages
             </Link>
             <button
               onClick={signOut}
-              className="text-sm text-gray-500 hover:text-founder-purple"
+              className="px-3 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
             >
               Sign out
             </button>
           </>
         ) : (
-          <Link to="/auth" className="text-sm text-black font-medium hover:underline">
+          <Link
+            to="/auth"
+            className="px-3 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all"
+          >
             Sign in
           </Link>
         )}

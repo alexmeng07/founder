@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 
-const ROLES = ['Frontend', 'Backend', 'AI/ML', 'Designer', 'PM', 'Pitcher'];
 const GOALS = [
   { value: 'learn', label: 'Learn' },
   { value: 'network', label: 'Network' },
@@ -21,6 +20,7 @@ export function CreateProject() {
     teamSizeTarget: 4,
   });
   const [techInput, setTechInput] = useState('');
+  const [rolesInput, setRolesInput] = useState('');
 
   const addTech = () => {
     const t = techInput.trim();
@@ -34,11 +34,16 @@ export function CreateProject() {
     setForm((f) => ({ ...f, techStack: f.techStack.filter((x) => x !== t) }));
   };
 
-  const toggleRole = (r) => {
-    setForm((f) => ({
-      ...f,
-      rolesNeeded: f.rolesNeeded.includes(r) ? f.rolesNeeded.filter((x) => x !== r) : [...f.rolesNeeded, r],
-    }));
+  const addRole = () => {
+    const r = rolesInput.trim();
+    if (r && !form.rolesNeeded.includes(r)) {
+      setForm((f) => ({ ...f, rolesNeeded: [...f.rolesNeeded, r] }));
+      setRolesInput('');
+    }
+  };
+
+  const removeRole = (r) => {
+    setForm((f) => ({ ...f, rolesNeeded: f.rolesNeeded.filter((x) => x !== r) }));
   };
 
   const handleSubmit = async (e) => {
@@ -125,23 +130,41 @@ export function CreateProject() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">
+          <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">
             Roles needed
           </label>
-          <div className="flex flex-wrap gap-2">
-            {ROLES.map((r) => (
-              <button
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={rolesInput}
+              onChange={(e) => setRolesInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRole())}
+              className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-purple-100 text-black placeholder:text-gray-400 focus:border-founder-purple outline-none"
+              placeholder="e.g. frontend, ML engineer..."
+            />
+            <button
+              type="button"
+              onClick={addRole}
+              className="px-4 py-3 rounded-xl bg-founder-purple text-white font-medium hover:bg-founder-purpleLight"
+            >
+              Add
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {form.rolesNeeded.map((r) => (
+              <span
                 key={r}
-                type="button"
-                onClick={() => toggleRole(r)}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                  form.rolesNeeded.includes(r)
-                    ? 'bg-founder-purple text-white'
-                    : 'bg-purple-50 text-gray-600 hover:text-founder-purple border border-purple-100'
-                }`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-founder-purple/10 text-founder-purple text-sm font-medium"
               >
                 {r}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => removeRole(r)}
+                  className="text-founder-purple/70 hover:text-founder-purple"
+                >
+                  ×
+                </button>
+              </span>
             ))}
           </div>
         </div>

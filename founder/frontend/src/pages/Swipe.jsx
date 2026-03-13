@@ -10,6 +10,7 @@ export function Swipe() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [match, setMatch] = useState(null);
+  const [triggerSwipe, setTriggerSwipe] = useState(null);
 
   const fetchFeed = async () => {
     try {
@@ -76,8 +77,9 @@ export function Swipe() {
       </h1>
       <div className="flex items-center gap-5">
         <button
-          onClick={() => topUser && handleSwipe('left', topUser)}
-          className="w-16 h-16 rounded-full border-4 border-rose-300 flex items-center justify-center text-rose-400 hover:border-rose-500 hover:text-rose-600 hover:scale-110 hover:bg-rose-50 transition-all flex-shrink-0 shadow-lg"
+          onClick={() => topUser && !triggerSwipe && setTriggerSwipe({ animateDir: 'right', choice: 'left' })}
+          disabled={!topUser || !!triggerSwipe}
+          className="w-16 h-16 rounded-full border-4 border-rose-300 flex items-center justify-center text-rose-400 hover:border-rose-500 hover:text-rose-600 hover:scale-110 hover:bg-rose-50 transition-all flex-shrink-0 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
           aria-label="Pass"
         >
           <span className="text-3xl">✕</span>
@@ -85,9 +87,13 @@ export function Swipe() {
         <div className="relative h-[560px] w-[380px] flex-shrink-0 overflow-visible">
           {topUser ? (
             <SwipeCard
+              key={topUser.userId}
               user={topUser}
-              onSwipe={(dir) => handleSwipe(dir, topUser)}
-              disabled={false}
+              onSwipe={(choice) => {
+                handleSwipe(choice, topUser);
+                setTriggerSwipe(null);
+              }}
+              triggerSwipe={triggerSwipe}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center rounded-3xl bg-white/90 border-2 border-purple-200 text-gray-500 shadow-xl">
@@ -96,8 +102,9 @@ export function Swipe() {
           )}
         </div>
         <button
-          onClick={() => topUser && handleSwipe('right', topUser)}
-          className="w-16 h-16 rounded-full bg-gradient-to-br from-founder-purple to-pink-500 flex items-center justify-center text-white hover:scale-110 shadow-xl shadow-founder-purple/40 transition-all flex-shrink-0"
+          onClick={() => topUser && !triggerSwipe && setTriggerSwipe({ animateDir: 'left', choice: 'right' })}
+          disabled={!topUser || !!triggerSwipe}
+          className="w-16 h-16 rounded-full bg-gradient-to-br from-founder-purple to-pink-500 flex items-center justify-center text-white hover:scale-110 shadow-xl shadow-founder-purple/40 transition-all flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           aria-label="Interest"
         >
           <span className="text-3xl">♥</span>
