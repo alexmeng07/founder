@@ -19,42 +19,6 @@ Globals:
     MemorySize: 256
 
 Resources:
-  # ─── Cognito ───────────────────────────────────────────────────────────────
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub founder-${Stage}-user-pool
-      AutoVerifiedAttributes: [email]
-      UsernameAttributes: [email]
-      Schema:
-        - Name: email
-          Required: true
-          Mutable: false
-        - Name: name
-          Required: false
-          Mutable: true
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireUppercase: true
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: false
-
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      UserPoolId: !Ref UserPool
-      ClientName: !Sub founder-${Stage}-client
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-      SupportedIdentityProviders:
-        - COGNITO
-        # - Google  # Uncomment when Google IdP configured
-
   # ─── S3 ───────────────────────────────────────────────────────────────────
   StorageBucket:
     Type: AWS::S3::Bucket
@@ -148,13 +112,8 @@ Resources:
       StageName: Prod
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
+        AllowHeaders: "'Content-Type,Authorization,x-mock-user-id'"
         AllowOrigin: "'*'"
-      Auth:
-        DefaultAuthorizer: CognitoAuthorizer
-        Authorizers:
-          CognitoAuthorizer:
-            UserPoolArn: !GetAtt UserPool.Arn
       BinaryMediaTypes:
         - 'multipart/form-data'
 
@@ -452,16 +411,6 @@ Outputs:
     Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/Prod'
     Export:
       Name: !Sub founder-${Stage}-ApiUrl
-  UserPoolId:
-    Description: Cognito User Pool ID
-    Value: !Ref UserPool
-    Export:
-      Name: !Sub founder-${Stage}-UserPoolId
-  UserPoolClientId:
-    Description: Cognito User Pool Client ID
-    Value: !Ref UserPoolClient
-    Export:
-      Name: !Sub founder-${Stage}-UserPoolClientId
   StorageBucketName:
     Description: S3 bucket for avatars and resumes
     Value: !Ref StorageBucket

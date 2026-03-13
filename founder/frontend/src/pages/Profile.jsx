@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { useAuth } from '../context/AuthContext';
+import { useDemoProfile } from '../context/DemoProfileContext';
 import { api } from '../utils/api';
 import SkillTag from '../components/SkillTag';
 
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 export default function Profile() {
   const { userId } = useAuth();
+  const { savedProfile, setSavedProfile } = useDemoProfile();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,8 +87,20 @@ export default function Profile() {
     e.preventDefault();
     setError('');
     setSaving(true);
+    const profileData = {
+      name: form.name,
+      bio: form.bio,
+      university: form.university,
+      graduationYear: form.graduationYear,
+      skills: form.skills,
+      interests: form.interests,
+      linkedinUrl: form.linkedinUrl,
+      githubUsername: form.githubUsername,
+      discordHandle: form.discordHandle,
+    };
+    setSavedProfile(profileData);
     try {
-      const { data } = await api.put('/profile', { ...form, githubRepos });
+      const { data } = await api.put('/profile', { ...form, userType: 'builder', githubRepos });
       if (data.success) setProfile(data.data);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Save failed');
@@ -138,7 +156,33 @@ export default function Profile() {
         }));
       }
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Resume parse failed');
+      try {
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(buf).promise;
+        let text = '';
+        for (let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map((it) => it.str).join(' ') + ' ';
+        }
+        const techTerms = ['Python', 'JavaScript', 'React', 'Node', 'TypeScript', 'Java', 'Rust', 'Go', 'C++', 'SQL', 'AWS', 'Docker', 'Kubernetes', 'TensorFlow', 'PyTorch', 'MongoDB', 'PostgreSQL'];
+        const foundSkills = techTerms.filter((t) => text.toLowerCase().includes(t.toLowerCase()));
+        const skillsMatch = text.match(/(?:skills?|technical|technologies?)[:\s]+([\w\s,/.+-]+?)(?=\n|$)/i);
+        const extraSkills = skillsMatch ? skillsMatch[1].split(/[\s,]+/).filter((s) => s.length > 2).slice(0, 8) : [];
+        const skills = [...new Set([...foundSkills, ...extraSkills])].slice(0, 12);
+        const eduMatch = text.match(/(?:university|education|institution|degree)[:\s]+([^\n]{3,60})/i);
+        const university = eduMatch ? eduMatch[1].trim() : '';
+        const summaryMatch = text.match(/(?:summary|objective|about|profile)[:\s]+([^\n]{20,300})/i);
+        const bio = summaryMatch ? summaryMatch[1].trim().slice(0, 200) : '';
+        setForm((f) => ({
+          ...f,
+          skills: skills.length ? skills : f.skills,
+          bio: bio || f.bio,
+          university: university || f.university,
+        }));
+      } catch (parseErr) {
+        setError(err.response?.data?.error || err.message || 'Resume parse failed. Add details manually.');
+      }
     } finally {
       setResumeParsing(false);
     }
@@ -155,7 +199,20 @@ export default function Profile() {
         setGithubRepos(data.data.repos);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'GitHub fetch failed');
+      try {
+        const res = await fetch(
+          `https://api.github.com/users/${encodeURIComponent(form.githubUsername.trim())}/repos?sort=updated&per_page=6`,
+          { headers: { Accept: 'application/vnd.github.v3+json' } }
+        );
+        if (res.ok) {
+          const repos = await res.json();
+          setGithubRepos(repos.map((r) => ({ name: r.name, language: r.language })));
+        } else {
+          setError(err.response?.data?.error || 'GitHub fetch failed');
+        }
+      } catch {
+        setError(err.response?.data?.error || 'GitHub fetch failed');
+      }
     }
   };
 
@@ -167,16 +224,45 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-founder-bg">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-founder-accent animate-pulse">Loading profile…</div>
       </div>
     );
   }
 
+  const displayProfile = savedProfile || profile;
+
   return (
-    <div className="min-h-screen bg-founder-bg pb-24">
+    <div className="min-h-screen bg-white pb-24">
       <div className="max-w-2xl mx-auto px-4 pt-8">
-        <h1 className="text-2xl font-bold text-white mb-8">Profile</h1>
+        <h1 className="text-2xl font-bold text-black mb-6">Profile</h1>
+
+        {displayProfile && (displayProfile.name || displayProfile.bio || displayProfile.skills?.length) && (
+          <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-100 p-6 mb-8 animate-fade-in">
+            <h2 className="text-sm font-medium text-founder-purple mb-4">Your unified profile</h2>
+            <div className="flex gap-4 items-start">
+              <div className="w-16 h-16 rounded-xl bg-founder-purple/20 flex items-center justify-center text-founder-purple text-xl font-bold flex-shrink-0">
+                {(displayProfile.name || '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-lg text-black">{displayProfile.name || 'Anonymous'}</h3>
+                {(displayProfile.university || displayProfile.graduationYear) && (
+                  <p className="text-sm text-purple-600 mt-0.5">
+                    {[displayProfile.university, displayProfile.graduationYear].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+                {displayProfile.bio && <p className="text-sm text-gray-700 mt-2">{displayProfile.bio}</p>}
+                {(displayProfile.skills || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {displayProfile.skills.map((s) => (
+                      <SkillTag key={s} label={s} active />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSave} className="space-y-6">
           <div className="flex gap-6 items-start">
@@ -188,7 +274,7 @@ export default function Profile() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-3xl text-zinc-500">?</span>
+                <span className="text-3xl text-gray-400">?</span>
               )}
             </div>
             <div>
@@ -202,7 +288,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
-                className="text-founder-accent hover:underline text-sm"
+                className="text-founder-purple hover:underline text-sm"
               >
                 Change avatar
               </button>
@@ -210,61 +296,49 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Name</label>
+            <label className="block text-sm text-gray-500 mb-1">Name</label>
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+              className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
               placeholder="Your name"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Bio</label>
+            <label className="block text-sm text-gray-500 mb-1">Bio</label>
             <textarea
               value={form.bio}
               onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
               rows={3}
-              className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent resize-none"
+              className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple resize-none"
               placeholder="Short intro"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">University</label>
+              <label className="block text-sm text-gray-500 mb-1">University</label>
               <input
                 value={form.university}
                 onChange={(e) => setForm((f) => ({ ...f, university: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="e.g. Stanford"
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Graduation</label>
+              <label className="block text-sm text-gray-500 mb-1">Graduation</label>
               <input
                 value={form.graduationYear}
                 onChange={(e) => setForm((f) => ({ ...f, graduationYear: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="e.g. 2026"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">I am a</label>
-            <select
-              value={form.userType}
-              onChange={(e) => setForm((f) => ({ ...f, userType: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
-            >
-              <option value="builder">Builder</option>
-              <option value="founder">Founder</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Skills</label>
+            <label className="block text-sm text-gray-500 mb-1">Skills</label>
             <div className="flex gap-2 mb-2">
               <input
                 value={skillInput}
@@ -272,13 +346,13 @@ export default function Profile() {
                 onKeyDown={(e) =>
                   e.key === 'Enter' && (e.preventDefault(), addTag('skills', skillInput))
                 }
-                className="flex-1 px-4 py-2 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="flex-1 px-4 py-2 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="Add skill"
               />
               <button
                 type="button"
                 onClick={() => addTag('skills', skillInput)}
-                className="px-4 py-2 rounded-xl bg-founder-accent hover:bg-founder-accentHover text-white text-sm"
+                className="px-4 py-2 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white text-sm"
               >
                 Add
               </button>
@@ -296,7 +370,7 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Interests</label>
+            <label className="block text-sm text-gray-500 mb-1">Interests</label>
             <div className="flex gap-2 mb-2">
               <input
                 value={interestInput}
@@ -304,13 +378,13 @@ export default function Profile() {
                 onKeyDown={(e) =>
                   e.key === 'Enter' && (e.preventDefault(), addTag('interests', interestInput))
                 }
-                className="flex-1 px-4 py-2 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="flex-1 px-4 py-2 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="Add interest"
               />
               <button
                 type="button"
                 onClick={() => addTag('interests', interestInput)}
-                className="px-4 py-2 rounded-xl bg-founder-accent hover:bg-founder-accentHover text-white text-sm"
+                className="px-4 py-2 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white text-sm"
               >
                 Add
               </button>
@@ -328,18 +402,18 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">GitHub</label>
+            <label className="block text-sm text-gray-500 mb-1">GitHub</label>
             <div className="flex gap-2">
               <input
                 value={form.githubUsername}
                 onChange={(e) => setForm((f) => ({ ...f, githubUsername: e.target.value }))}
-                className="flex-1 px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="flex-1 px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="username"
               />
               <button
                 type="button"
                 onClick={handleGithubConnect}
-                className="px-4 py-3 rounded-xl bg-founder-accent hover:bg-founder-accentHover text-white"
+                className="px-4 py-3 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white"
               >
                 Fetch repos
               </button>
@@ -352,7 +426,7 @@ export default function Profile() {
                     href={`https://github.com/${form.githubUsername}/${r.name}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-sm text-zinc-400 hover:text-founder-accent"
+                    className="block text-sm text-gray-500 hover:text-founder-accent"
                   >
                     {r.name} — {r.language || '—'}
                   </a>
@@ -362,64 +436,87 @@ export default function Profile() {
           </div>
 
           <div>
-            <label className="block text-sm text-zinc-400 mb-1">Resume (PDF)</label>
+            <label className="block text-sm text-gray-500 mb-1">Resume (PDF)</label>
             <input
               type="file"
               accept=".pdf"
               onChange={(e) => handleResumeUpload(e.target.files?.[0])}
               disabled={resumeParsing}
-              className="block text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-founder-accent file:text-white"
+              className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-founder-accent file:text-white"
             />
             {resumeParsing && <p className="text-sm text-founder-accent mt-1">Parsing…</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">LinkedIn</label>
+              <label className="block text-sm text-gray-500 mb-1">LinkedIn</label>
               <input
                 value={form.linkedinUrl}
                 onChange={(e) => setForm((f) => ({ ...f, linkedinUrl: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="https://linkedin.com/in/..."
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Devpost</label>
+              <label className="block text-sm text-gray-500 mb-1">Devpost</label>
               <input
                 value={form.devpostUrl}
                 onChange={(e) => setForm((f) => ({ ...f, devpostUrl: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="https://devpost.com/..."
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Instagram</label>
+              <label className="block text-sm text-gray-500 mb-1">Instagram</label>
               <input
                 value={form.instagramHandle}
                 onChange={(e) => setForm((f) => ({ ...f, instagramHandle: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="@handle"
               />
             </div>
             <div>
-              <label className="block text-sm text-zinc-400 mb-1">Discord</label>
+              <label className="block text-sm text-gray-500 mb-1">Discord</label>
               <input
                 value={form.discordHandle}
                 onChange={(e) => setForm((f) => ({ ...f, discordHandle: e.target.value }))}
-                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-founder-accent"
+                className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-black focus:outline-none focus:ring-2 focus:ring-founder-purple"
                 placeholder="handle#1234"
               />
             </div>
           </div>
 
+          {(form.githubUsername || form.linkedinUrl || form.discordHandle) && (
+            <div className="rounded-xl bg-purple-50 border border-purple-100 p-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Quick links</p>
+              <div className="flex flex-wrap gap-2">
+                {form.githubUsername && (
+                  <a href={`https://github.com/${form.githubUsername}`} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg bg-white border border-purple-100 text-founder-purple text-sm hover:bg-founder-purple/5">
+                    GitHub
+                  </a>
+                )}
+                {form.linkedinUrl && (
+                  <a href={form.linkedinUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg bg-white border border-purple-100 text-founder-purple text-sm hover:bg-founder-purple/5">
+                    LinkedIn
+                  </a>
+                )}
+                {form.discordHandle && (
+                  <span className="px-3 py-2 rounded-lg bg-white border border-purple-100 text-founder-purple text-sm">
+                    Discord: {form.discordHandle}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-red-400 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3 rounded-xl bg-founder-accent hover:bg-founder-accentHover text-white font-medium transition disabled:opacity-50"
-          >
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full py-3 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white font-medium transition disabled:opacity-50"
+            >
             {saving ? 'Saving…' : 'Save'}
           </button>
         </form>

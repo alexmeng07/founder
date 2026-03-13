@@ -9,10 +9,15 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const claims = event.requestContext?.authorizer?.claims;
-    if (!claims?.sub) {
+    const userId = getUserId(event);
+    if (!userId) {
       return {
         statusCode: 401,
         headers: corsHeaders,
@@ -21,13 +26,13 @@ exports.handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || '{}');
-    const userId = claims.sub;
+    const claims = event.requestContext?.authorizer?.claims || {};
     const now = new Date().toISOString();
 
     const item = {
       userId,
       name: body.name ?? '',
-      email: claims.email ?? body.email ?? '',
+      email: body.email ?? claims.email ?? '',
       bio: body.bio ?? '',
       university: body.university ?? '',
       graduationYear: body.graduationYear ?? null,

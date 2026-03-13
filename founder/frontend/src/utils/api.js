@@ -8,12 +8,9 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  let token = localStorage.getItem('token');
-  if (!token && window.__authGetToken) {
-    token = await window.__authGetToken?.();
-  }
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const mockUserId = localStorage.getItem('mock_user_id');
+  if (mockUserId) {
+    config.headers['x-mock-user-id'] = mockUserId;
   }
   return config;
 });
@@ -22,7 +19,8 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token');
+      localStorage.removeItem('mock_user');
+      localStorage.removeItem('mock_user_id');
       window.dispatchEvent(new Event('auth:logout'));
     }
     return Promise.reject(err);

@@ -13,18 +13,21 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const claims = event.requestContext?.authorizer?.claims;
-    if (!claims?.sub) {
+    const userId = getUserId(event);
+    if (!userId) {
       return {
         statusCode: 401,
         headers: corsHeaders,
         body: JSON.stringify({ success: false, error: 'Unauthorized' }),
       };
     }
-
-    const userId = claims.sub;
     const type = event.queryStringParameters?.type ?? 'avatar';
     const ext = event.queryStringParameters?.ext ?? (type === 'resume' ? 'pdf' : 'jpg');
     const folder = type === 'resume' ? 'resumes' : 'avatars';

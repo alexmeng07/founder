@@ -17,9 +17,14 @@ function jsonResponse(statusCode, body) {
 
 const MODEL_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const fromUserId = event.requestContext?.authorizer?.claims?.sub;
+    const fromUserId = getUserId(event);
     if (!fromUserId) {
       return jsonResponse(401, { success: false, error: 'Unauthorized' });
     }

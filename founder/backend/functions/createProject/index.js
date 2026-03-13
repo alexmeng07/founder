@@ -15,9 +15,14 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const ownerId = event.requestContext?.authorizer?.claims?.sub;
+    const ownerId = getUserId(event);
     if (!ownerId) {
       return jsonResponse(401, { success: false, error: 'Unauthorized' });
     }
