@@ -58,8 +58,8 @@ export function CreateProject() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-12 px-4 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Create project</h1>
+    <div className="min-h-screen pt-8 pb-12 px-4 max-w-lg mx-auto">
+      <h1 className="text-2xl font-bold text-black mb-6">Create project</h1>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">
@@ -69,7 +69,7 @@ export function CreateProject() {
             type="text"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white placeholder:text-[var(--text-muted)] focus:border-founder-accent outline-none"
+            className="w-full px-4 py-3 rounded-xl bg-white border-2 border-purple-100 text-black placeholder:text-gray-400 focus:border-founder-purple focus:ring-2 focus:ring-founder-purple/20 outline-none"
             placeholder="e.g. AI-powered study planner"
             required
           />
@@ -81,7 +81,7 @@ export function CreateProject() {
           <textarea
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            className="w-full px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white placeholder:text-[var(--text-muted)] focus:border-founder-accent outline-none resize-none h-28"
+            className="w-full px-4 py-3 rounded-xl bg-white border-2 border-purple-100 text-black placeholder:text-gray-400 focus:border-founder-purple outline-none resize-none h-28"
             placeholder="What's the idea? Tech stack? Who are you looking for?"
           />
         </div>
@@ -95,13 +95,13 @@ export function CreateProject() {
               value={techInput}
               onChange={(e) => setTechInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTech())}
-              className="flex-1 px-4 py-3 rounded-xl bg-founder-card border border-[var(--border)] text-white placeholder:text-[var(--text-muted)] focus:border-founder-accent outline-none"
+              className="flex-1 px-4 py-3 rounded-xl bg-white border-2 border-purple-100 text-black placeholder:text-gray-400 focus:border-founder-purple outline-none"
               placeholder="React, Node..."
             />
             <button
               type="button"
               onClick={addTech}
-              className="px-4 py-3 rounded-xl bg-founder-accent text-white font-medium hover:bg-founder-accentHover"
+              className="px-4 py-3 rounded-xl bg-founder-purple text-white font-medium hover:bg-founder-purpleLight"
             >
               Add
             </button>
@@ -116,7 +116,7 @@ export function CreateProject() {
                 <button
                   type="button"
                   onClick={() => removeTech(t)}
-                  className="text-[var(--text-muted)] hover:text-white"
+                  className="text-[var(--text-muted)] hover:text-black"
                 >
                   ×
                 </button>
@@ -136,8 +136,8 @@ export function CreateProject() {
                 onClick={() => toggleRole(r)}
                 className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
                   form.rolesNeeded.includes(r)
-                    ? 'bg-founder-accent text-white'
-                    : 'bg-[var(--border)] text-[var(--text-muted)] hover:text-white'
+                    ? 'bg-founder-purple text-white'
+                    : 'bg-purple-50 text-gray-600 hover:text-founder-purple border border-purple-100'
                 }`}
               >
                 {r}
@@ -155,8 +155,8 @@ export function CreateProject() {
                 onClick={() => setForm((f) => ({ ...f, goal: g.value }))}
                 className={`px-4 py-2 rounded-lg text-sm ${
                   form.goal === g.value
-                    ? 'bg-founder-accent text-white'
-                    : 'bg-[var(--border)] text-[var(--text-muted)] hover:text-white'
+                    ? 'bg-founder-purple text-white'
+                    : 'bg-purple-50 text-gray-600 hover:text-founder-purple border border-purple-100'
                 }`}
               >
                 {g.label}
@@ -176,7 +176,7 @@ export function CreateProject() {
             onChange={(e) =>
               setForm((f) => ({ ...f, teamSizeTarget: parseInt(e.target.value, 10) }))
             }
-            className="w-full accent-founder-accent"
+            className="w-full accent-founder-purple"
           />
         </div>
         <button

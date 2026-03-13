@@ -10,12 +10,17 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 const MODEL_ID = 'anthropic.claude-sonnet-4-v1:0';
 
 exports.handler = async (event) => {
   try {
-    const claims = event.requestContext?.authorizer?.claims;
-    if (!claims?.sub) {
+    const userId = getUserId(event);
+    if (!userId) {
       return {
         statusCode: 401,
         headers: corsHeaders,

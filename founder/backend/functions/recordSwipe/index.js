@@ -1,7 +1,6 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, PutCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,9 +15,14 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const swiperId = event.requestContext?.authorizer?.claims?.sub;
+    const swiperId = getUserId(event);
     if (!swiperId) {
       return jsonResponse(401, { success: false, error: 'Unauthorized' });
     }
@@ -67,37 +71,6 @@ exports.handler = async (event) => {
             }),
           })
         );
-        const ses = new SESClient();
-        const sender = process.env.SENDER_EMAIL;
-        const docClient = DynamoDBDocumentClient.from(new DynamoDBClient());
-        const { Item: swipeeProfile } = await docClient.send(
-          new (require('@aws-sdk/lib-dynamodb').GetCommand)({
-            TableName: process.env.USERS_TABLE,
-            Key: { userId: swipeeId },
-            ProjectionExpression: 'email',
-          })
-        );
-        const toEmail = swipeeProfile?.email;
-        if (sender && toEmail) {
-          try {
-            await ses.send(
-              new SendEmailCommand({
-                Source: sender,
-                Destination: { ToAddresses: [toEmail] },
-                Message: {
-                  Subject: { Data: 'You have a new match on Founder!' },
-                  Body: {
-                    Text: {
-                      Data: `You and someone else both swiped right. Log in to Founder to connect!`,
-                    },
-                  },
-                },
-              })
-            );
-          } catch (e) {
-            console.warn('SES send failed (expected if not configured):', e.message);
-          }
-        }
       }
     }
 

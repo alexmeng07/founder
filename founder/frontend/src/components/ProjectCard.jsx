@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import SkillTag from './SkillTag';
 import { api } from '../utils/api';
 
-const GOAL_LABELS = { learn: 'Learn', network: 'Network', startup: 'Startup' };
+const GOAL_LABELS = { learn: 'Learn', network: 'Network', startup: 'Startup', hackathon: 'Hackathon', research: 'Research' };
 
 export function ProjectCard({ project, onLike }) {
   const navigate = useNavigate();
@@ -12,6 +12,12 @@ export function ProjectCard({ project, onLike }) {
 
   const handleLike = async () => {
     if (loading || liked) return;
+    const isDemo = project.projectId?.startsWith('demo-');
+    if (isDemo) {
+      setLiked(true);
+      onLike?.(project);
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post(`/projects/${project.projectId}/like`);
@@ -34,13 +40,17 @@ export function ProjectCard({ project, onLike }) {
     .slice(0, 2);
 
   return (
-    <article className="rounded-2xl bg-founder-card border border-[var(--border)] overflow-hidden">
+    <article className="rounded-2xl bg-white border border-purple-100 overflow-hidden shadow-sm hover:shadow-md hover:shadow-founder-purple/5 transition-all duration-300 animate-fade-in">
       <div className="p-5">
         <div className="flex justify-between items-start gap-3">
-          <h3 className="font-bold text-lg text-white flex-1">{project.title}</h3>
-          <span className="px-2 py-0.5 rounded-full text-xs bg-founder-accent/20 text-founder-accent">
-            {GOAL_LABELS[project.goal] || project.goal}
-          </span>
+          <h3 className="font-bold text-lg text-black flex-1">{project.title}</h3>
+          <div className="flex gap-1 flex-shrink-0">
+            {(project.tags || [project.goal]).slice(0, 2).map((t) => (
+              <span key={t} className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-founder-purple">
+                {GOAL_LABELS[t] || t}
+              </span>
+            ))}
+          </div>
         </div>
         {project.description && (
           <p className="text-sm text-[var(--text-muted)] mt-2 line-clamp-3">{project.description}</p>
@@ -60,7 +70,7 @@ export function ProjectCard({ project, onLike }) {
             onClick={() => project.ownerId && navigate(`/profile/${project.ownerId}`)}
             className="flex items-center gap-2 hover:opacity-80"
           >
-            <div className="w-8 h-8 rounded-full bg-founder-accent/20 flex items-center justify-center text-founder-accent text-xs font-bold">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-black text-xs font-bold">
               {initials}
             </div>
             <span className="text-sm font-medium">{project.ownerName || 'Unknown'}</span>
@@ -69,7 +79,7 @@ export function ProjectCard({ project, onLike }) {
             onClick={handleLike}
             disabled={loading}
             className={`p-2 rounded-full transition-all ${
-              liked ? 'text-red-500 scale-110' : 'text-[var(--text-muted)] hover:text-red-500/80'
+              liked ? 'text-founder-purple scale-110' : 'text-[var(--text-muted)] hover:text-founder-purple/80'
             }`}
             aria-label="Like"
           >

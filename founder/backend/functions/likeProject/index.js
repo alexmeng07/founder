@@ -1,6 +1,5 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const { DynamoDBDocumentClient, GetCommand, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,9 +14,14 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const likerId = event.requestContext?.authorizer?.claims?.sub;
+    const likerId = getUserId(event);
     if (!likerId) {
       return jsonResponse(401, { success: false, error: 'Unauthorized' });
     }
@@ -30,12 +34,14 @@ exports.handler = async (event) => {
     const client = new DynamoDBClient();
     const doc = DynamoDBDocumentClient.from(client);
 
-    const { Item: project } = await doc.send(
-      new GetCommand({
+    const { Items } = await doc.send(
+      new QueryCommand({
         TableName: process.env.PROJECTS_TABLE,
-        Key: { projectId, ownerId: project.userId },
+        KeyConditionExpression: 'projectId = :pid',
+        ExpressionAttributeValues: { ':pid': projectId },
       })
     );
+    const project = Items?.[0];
 
     if (!project) {
       return jsonResponse(404, { success: false, error: 'Project not found' });
@@ -56,36 +62,6 @@ exports.handler = async (event) => {
         ExpressionAttributeValues: { ':zero': 0, ':one': 1 },
       })
     );
-
-    const sender = process.env.SENDER_EMAIL;
-    if (sender && liker && project.ownerId) {
-      const { Item: founder } = await doc.send(
-        new GetCommand({
-          TableName: process.env.USERS_TABLE,
-          Key: { userId: project.ownerId },
-        })
-      );
-      if (founder?.email) {
-        try {
-          await new SESClient().send(
-            new SendEmailCommand({
-              Source: sender,
-              Destination: { ToAddresses: [founder.email] },
-              Message: {
-                Subject: { Data: `Someone liked "${project.title}" on Founder` },
-                Body: {
-                  Text: {
-                    Data: `${liker.name || 'A builder'} is interested in your project "${project.title}". Check Founder to connect!`,
-                  },
-                },
-              },
-            })
-          );
-        } catch (e) {
-          console.warn('SES send failed:', e.message);
-        }
-      }
-    }
 
     return jsonResponse(200, {
       success: true,

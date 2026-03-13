@@ -3,17 +3,58 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #0d0d0d;
-  --bg-card: #1a1a1a;
-  --accent: #7c3aed;
-  --accent-hover: #6d28d9;
-  --text-primary: #ffffff;
-  --text-muted: #a1a1aa;
-  --border: #27272a;
+  --bg-primary: #faf9fc;
+  --bg-card: #f5f3f8;
+  --accent: #6B21A8;
+  --accent-hover: #7C3AED;
+  --founder-purple: #6B21A8;
+  --founder-purple-light: #7C3AED;
+  --text-primary: #1a1a2e;
+  --text-muted: #6b7280;
+  --border: #e9e5f0;
 }
 
+html,
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-fade-in-delay-1 { animation: fade-in 0.5s ease-out 0.2s forwards; opacity: 0; }
+.animate-fade-in-delay-2 { animation: fade-in 0.5s ease-out 0.4s forwards; opacity: 0; }
+
+.animate-typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  border-right: 2px solid var(--founder-purple);
+  animation: typewriter 1.5s steps(7) forwards, blink 0.7s step-end infinite;
+  width: 0;
 }

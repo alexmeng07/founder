@@ -14,9 +14,14 @@ function jsonResponse(statusCode, body) {
   };
 }
 
+function getUserId(event) {
+  const h = event.headers || {};
+  return h['x-mock-user-id'] || h['X-Mock-User-Id'] || event.requestContext?.authorizer?.claims?.sub;
+}
+
 exports.handler = async (event) => {
   try {
-    const swiperId = event.requestContext?.authorizer?.claims?.sub || event.queryStringParameters?.userId;
+    const swiperId = getUserId(event) || event.queryStringParameters?.userId;
     const limit = Math.min(parseInt(event.queryStringParameters?.limit || '20', 10), 50);
     const lastKey = event.queryStringParameters?.lastKey ? JSON.parse(decodeURIComponent(event.queryStringParameters.lastKey)) : null;
 

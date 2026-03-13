@@ -1,7 +1,0 @@
-{
-  "name": "send-outreach",
-  "version": "1.0.0",
-  "dependencies": {
-    "@aws-sdk/client-ses": "^3.400.0"
-  }
-}

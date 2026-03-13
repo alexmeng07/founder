@@ -8,14 +8,18 @@ export default {
     extend: {
       colors: {
         founder: {
-          bg: '#0d0d0d',
-          card: '#1a1a1a',
-          accent: '#7c3aed',
-          accentHover: '#6d28d9',
+          bg: '#ffffff',
+          card: '#f5f5f5',
+          accent: '#000000',
+          accentHover: '#171717',
+          purple: '#6B21A8',
+          purpleLight: '#7C3AED',
+          purpleMuted: '#A78BFA',
         },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        logo: ['Syne', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         '2xl': '24px',
