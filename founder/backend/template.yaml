@@ -1,0 +1,499 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Founder - Tinder-meets-LinkedIn for hackathon teammates and co-founders
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+  SenderEmail:
+    Type: String
+    Description: Verified SES email for sending notifications
+  GitHubApiToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: GitHub API token for repo scraping (optional)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 30
+    MemorySize: 256
+
+Resources:
+  # ─── Cognito ───────────────────────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub founder-${Stage}-user-pool
+      AutoVerifiedAttributes: [email]
+      UsernameAttributes: [email]
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: false
+        - Name: name
+          Required: false
+          Mutable: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub founder-${Stage}-client
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+        # - Google  # Uncomment when Google IdP configured
+
+  # ─── S3 ───────────────────────────────────────────────────────────────────
+  StorageBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub founder-${Stage}-storage-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST]
+            AllowedOrigins: ['*']
+            ExposedHeaders: ['ETag']
+
+  # ─── DynamoDB ──────────────────────────────────────────────────────────────
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub founder-${Stage}-Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub founder-${Stage}-Projects
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: projectId
+          AttributeType: S
+        - AttributeName: ownerId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: projectId
+          KeyType: HASH
+        - AttributeName: ownerId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  SwipesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub founder-${Stage}-Swipes
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: swiperId
+          AttributeType: S
+        - AttributeName: swipeeId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: swiperId
+          KeyType: HASH
+        - AttributeName: swipeeId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SwipeeIndex
+          KeySchema:
+            - AttributeName: swipeeId
+              KeyType: HASH
+            - AttributeName: swiperId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ─── SNS ──────────────────────────────────────────────────────────────────
+  MatchesTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub founder-${Stage}-Matches
+
+  # ─── API Gateway ──────────────────────────────────────────────────────────
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub founder-${Stage}-api
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+      BinaryMediaTypes:
+        - 'multipart/form-data'
+
+  # ─── Lambda: Profile ──────────────────────────────────────────────────────
+  CreateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/createProfile/
+      Handler: index.handler
+      Events:
+        PutProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile
+            Method: put
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+
+  GetProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getProfile/
+      Handler: index.handler
+      Events:
+        GetProfile:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile/{userId}
+            Method: get
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  GetAvatarUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getAvatarUrl/
+      Handler: index.handler
+      Events:
+        GetAvatarUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile/avatar-view
+            Method: get
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref StorageBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref StorageBucket
+
+  UploadAvatarUrlFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/uploadAvatarUrl/
+      Handler: index.handler
+      Events:
+        GetAvatarUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile/avatar-url
+            Method: get
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref StorageBucket
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref StorageBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+
+  ParseResumeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/parseResume/
+      Handler: index.handler
+      Events:
+        ParseResume:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile/resume
+            Method: post
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          S3_BUCKET: !Ref StorageBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref StorageBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: textract:DetectDocumentText
+              Resource: '*'
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: '*'
+
+  ScrapeGithubFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/scrapeGithub/
+      Handler: index.handler
+      Events:
+        ScrapeGithub:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /profile/github
+            Method: post
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          GITHUB_API_TOKEN: !Ref GitHubApiToken
+
+  # ─── Lambda: Swipe ─────────────────────────────────────────────────────────
+  GetPeopleFeedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getPeopleFeed/
+      Handler: index.handler
+      Events:
+        GetPeopleFeed:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /swipe/feed
+            Method: get
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          SWIPES_TABLE: !Ref SwipesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref SwipesTable
+
+  RecordSwipeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/recordSwipe/
+      Handler: index.handler
+      Events:
+        RecordSwipe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /swipe
+            Method: post
+      Environment:
+        Variables:
+          SWIPES_TABLE: !Ref SwipesTable
+          SNS_TOPIC_ARN: !Ref MatchesTopic
+          SENDER_EMAIL: !Ref SenderEmail
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SwipesTable
+        - SNSPublishPolicy:
+            TopicName: !GetAtt MatchesTopic.TopicName
+
+  # ─── Lambda: Projects ──────────────────────────────────────────────────────
+  GetProjectFeedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getProjectFeed/
+      Handler: index.handler
+      Events:
+        GetProjectFeed:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /projects/feed
+            Method: get
+            Auth:
+              Authorizer: NONE
+      Environment:
+        Variables:
+          PROJECTS_TABLE: !Ref ProjectsTable
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProjectsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  CreateProjectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/createProject/
+      Handler: index.handler
+      Events:
+        CreateProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /projects
+            Method: post
+      Environment:
+        Variables:
+          PROJECTS_TABLE: !Ref ProjectsTable
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProjectsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  LikeProjectFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/likeProject/
+      Handler: index.handler
+      Events:
+        LikeProject:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /projects/{projectId}/like
+            Method: post
+      Environment:
+        Variables:
+          PROJECTS_TABLE: !Ref ProjectsTable
+          USERS_TABLE: !Ref UsersTable
+          SENDER_EMAIL: !Ref SenderEmail
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProjectsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  # ─── Lambda: Outreach ──────────────────────────────────────────────────────
+  ComposeEmailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/composeEmail/
+      Handler: index.handler
+      Events:
+        ComposeEmail:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /outreach/compose
+            Method: post
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          SENDER_EMAIL: !Ref SenderEmail
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: '*'
+
+  SendOutreachFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/sendOutreach/
+      Handler: index.handler
+      Events:
+        SendOutreach:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /outreach/send
+            Method: post
+      Environment:
+        Variables:
+          SENDER_EMAIL: !Ref SenderEmail
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: ses:SendEmail
+              Resource: '*'
+
+  # ─── Lambda: Feed Refresh (EventBridge) ────────────────────────────────────
+  GetFeedRefreshFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getFeedRefresh/
+      Handler: index.handler
+      Events:
+        Scheduled:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 * * ? *)
+            Description: Daily feed refresh at 6am UTC
+      Environment:
+        Variables:
+          PROJECTS_TABLE: !Ref ProjectsTable
+          USERS_TABLE: !Ref UsersTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProjectsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/Prod'
+    Export:
+      Name: !Sub founder-${Stage}-ApiUrl
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub founder-${Stage}-UserPoolId
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub founder-${Stage}-UserPoolClientId
+  StorageBucketName:
+    Description: S3 bucket for avatars and resumes
+    Value: !Ref StorageBucket
+    Export:
+      Name: !Sub founder-${Stage}-StorageBucket

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/.aws-sam/
+
+# Build
+frontend/dist/
+backend/packaged.yaml
+
+# Environment
+frontend/.env
+.env
+.env.local
+*.env
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
