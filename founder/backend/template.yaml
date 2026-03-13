@@ -98,6 +98,22 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  MessagesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub founder-${Stage}-Messages
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversationId
+          AttributeType: S
+        - AttributeName: messageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: conversationId
+          KeyType: HASH
+        - AttributeName: messageId
+          KeyType: RANGE
+
   # ─── SNS ──────────────────────────────────────────────────────────────────
   MatchesTopic:
     Type: AWS::SNS::Topic
@@ -357,6 +373,45 @@ Resources:
             TableName: !Ref ProjectsTable
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
+
+  # ─── Lambda: Messages ───────────────────────────────────────────────────────
+  GetMessagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/getMessages/
+      Handler: index.handler
+      Events:
+        GetMessages:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /messages
+            Method: get
+      Environment:
+        Variables:
+          MESSAGES_TABLE: !Ref MessagesTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref MessagesTable
+
+  SendMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/sendMessage/
+      Handler: index.handler
+      Events:
+        SendMessage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /messages
+            Method: post
+      Environment:
+        Variables:
+          MESSAGES_TABLE: !Ref MessagesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MessagesTable
 
   # ─── Lambda: Outreach ──────────────────────────────────────────────────────
   ComposeEmailFunction:

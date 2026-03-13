@@ -3,6 +3,24 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { DEMO_USERS } from '../data/demoData';
 import { useAuth } from '../context/AuthContext';
 import { useDemoProfile } from '../context/DemoProfileContext';
+import { api } from '../utils/api';
+
+const STORAGE_KEY = 'founder_demo_messages';
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveToStorage(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {}
+}
 
 export function Messages() {
   const [searchParams] = useSearchParams();
@@ -12,7 +30,7 @@ export function Messages() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [sentMessages, setSentMessages] = useState({});
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { savedProfile } = useDemoProfile();
 
@@ -20,43 +38,66 @@ export function Messages() {
   const displayProfile = savedProfile || { name: user?.name || 'You', bio: '', university: '', skills: [] };
 
   useEffect(() => {
-    if (withUserId && activeUser) {
-      const sent = sentMessages[withUserId] || [];
-      setMessages([...sent]);
+    if (!withUserId) {
+      setLoading(true);
+      api
+        .get('/messages')
+        .then(({ data }) => {
+          if (data?.success && data?.data?.conversations) {
+            setConversations(
+              data.data.conversations.map((c) => ({
+                userId: c.userId,
+                user: DEMO_USERS.find((u) => u.userId === c.userId) || { name: 'Unknown' },
+                lastMessage: c.lastMessage,
+                lastTime: c.lastTime,
+              }))
+            );
+          }
+        })
+        .catch(() => {
+          const stored = loadFromStorage();
+          setConversations(
+            Object.keys(stored).map((uid) => {
+              const u = DEMO_USERS.find((x) => x.userId === uid) || { name: 'Unknown' };
+              const sent = stored[uid] || [];
+              const last = sent[sent.length - 1];
+              return {
+                userId: uid,
+                user: u,
+                lastMessage: last?.type === 'profile' ? 'Profile shared' : last?.text,
+                lastTime: last?.time,
+              };
+            })
+          );
+        })
+        .finally(() => setLoading(false));
     } else {
       setMessages([]);
+      setLoading(true);
+      api
+        .get(`/messages?with=${encodeURIComponent(withUserId)}`)
+        .then(({ data }) => {
+          if (data?.success && data?.data?.messages) {
+            setMessages(data.data.messages);
+          }
+        })
+        .catch(() => {
+          const stored = loadFromStorage();
+          setMessages(stored[withUserId] || []);
+        })
+        .finally(() => setLoading(false));
     }
-  }, [withUserId, activeUser, sentMessages]);
+  }, [withUserId]);
 
   const hasPushedFor = useRef(new Set());
   useEffect(() => {
-    if (fromFeed && withUserId && displayProfile?.name && !hasPushedFor.current.has(withUserId)) {
+    if (!loading && fromFeed && withUserId && displayProfile?.name && !hasPushedFor.current.has(withUserId)) {
       hasPushedFor.current.add(withUserId);
-      const newMsg = {
-        id: Date.now().toString(),
-        from: 'me',
-        type: 'profile',
-        profile: displayProfile,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setSentMessages((prev) => ({
-        ...prev,
-        [withUserId]: [...(prev[withUserId] || []), newMsg],
-      }));
+      handlePushProfile();
     }
-  }, [fromFeed, withUserId, displayProfile]);
+  }, [loading, fromFeed, withUserId, displayProfile?.name]);
 
-  useEffect(() => {
-    const convos = Object.keys(sentMessages).map((uid) => {
-      const u = DEMO_USERS.find((x) => x.userId === uid) || { name: 'Unknown' };
-      const sent = sentMessages[uid] || [];
-      const last = sent[sent.length - 1];
-      return { userId: uid, user: u, lastMessage: last?.type === 'profile' ? 'Profile shared' : last?.text, lastTime: last?.time };
-    });
-    setConversations(convos);
-  }, [sentMessages]);
-
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
     if (!text || !withUserId) return;
     const newMsg = {
@@ -66,14 +107,18 @@ export function Messages() {
       text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
-    setSentMessages((prev) => ({
-      ...prev,
-      [withUserId]: [...(prev[withUserId] || []), newMsg],
-    }));
+    setMessages((prev) => [...prev, newMsg]);
     setInput('');
+    try {
+      await api.post('/messages', { to: withUserId, type: 'text', text });
+    } catch {
+      const stored = loadFromStorage();
+      stored[withUserId] = [...(stored[withUserId] || []), newMsg];
+      saveToStorage(stored);
+    }
   };
 
-  const handlePushProfile = () => {
+  const handlePushProfile = async () => {
     if (!withUserId) return;
     const newMsg = {
       id: Date.now().toString(),
@@ -82,10 +127,14 @@ export function Messages() {
       profile: displayProfile,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
-    setSentMessages((prev) => ({
-      ...prev,
-      [withUserId]: [...(prev[withUserId] || []), newMsg],
-    }));
+    setMessages((prev) => [...prev, newMsg]);
+    try {
+      await api.post('/messages', { to: withUserId, type: 'profile', profile: displayProfile });
+    } catch {
+      const stored = loadFromStorage();
+      stored[withUserId] = [...(stored[withUserId] || []), newMsg];
+      saveToStorage(stored);
+    }
   };
 
   const initials = (name) =>
@@ -101,7 +150,9 @@ export function Messages() {
       <div className="min-h-screen pt-8 pb-12 flex flex-col max-w-lg mx-auto">
         <h1 className="text-2xl font-bold text-black mb-6 px-4">Messages</h1>
         <div className="flex-1 px-4">
-          {conversations.length === 0 ? (
+          {loading ? (
+            <p className="text-gray-500 text-sm">Loading...</p>
+          ) : conversations.length === 0 ? (
             <p className="text-gray-500 text-sm">No conversations yet. Like someone to start a conversation!</p>
           ) : (
             <div className="space-y-1">
@@ -150,12 +201,16 @@ export function Messages() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 pt-6 pb-24 space-y-3">
-        {fromFeed && messages.length === 0 && (
-          <div className="text-center py-4">
-            <p className="text-sm text-gray-500 mb-4">You liked their project. Push your profile to introduce yourself!</p>
-          </div>
-        )}
-        {messages.map((m) => (
+        {loading ? (
+          <p className="text-gray-500 text-sm text-center py-4">Loading messages...</p>
+        ) : (
+          <>
+            {fromFeed && messages.length === 0 && (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 mb-4">You liked their project. Push your profile to introduce yourself!</p>
+              </div>
+            )}
+            {messages.map((m) => (
           <div key={m.id} className={`flex ${m.from === 'me' ? 'justify-end' : 'justify-start'}`}>
             {m.type === 'profile' ? (
               <div className="max-w-[85%] rounded-2xl bg-founder-purple text-white p-4 rounded-br-md shadow-lg">
@@ -188,6 +243,8 @@ export function Messages() {
             )}
           </div>
         ))}
+          </>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-purple-100">
