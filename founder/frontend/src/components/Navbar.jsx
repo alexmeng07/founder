@@ -17,14 +17,14 @@ export default function Navbar() {
         >
           Become a founder.
         </Link>
-        <Link
-          to="/feed"
-          className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/feed' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-        >
-          Feed
-        </Link>
         {user ? (
           <>
+            <Link
+              to="/feed"
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/feed' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              Feed
+            </Link>
             <Link
               to="/swipe"
               className={`px-3 py-2 rounded-full text-sm font-medium transition-all ${loc.pathname === '/swipe' ? 'bg-gray-200 text-gray-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
