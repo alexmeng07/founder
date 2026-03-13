@@ -33,6 +33,7 @@ export default function Profile() {
   const [interestInput, setInterestInput] = useState('');
   const [githubRepos, setGithubRepos] = useState([]);
   const [resumeParsing, setResumeParsing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const avatarInputRef = useRef(null);
 
   useEffect(() => {
@@ -63,6 +64,16 @@ export default function Profile() {
       .catch(() => setProfile({}))
       .finally(() => setLoading(false));
   }, [userId]);
+
+  useEffect(() => {
+    if (!loading) {
+      const hasData = profile?.name || profile?.bio || (profile?.skills?.length > 0);
+      const hasSaved = savedProfile?.name || savedProfile?.bio || (savedProfile?.skills?.length > 0);
+      if (!hasData && !hasSaved) {
+        setIsEditing(true);
+      }
+    }
+  }, [loading, profile?.name, profile?.bio, profile?.skills, savedProfile?.name, savedProfile?.bio, savedProfile?.skills]);
 
   const addTag = (key, value) => {
     const v = value.trim();
@@ -107,6 +118,7 @@ export default function Profile() {
     } finally {
       setSaving(false);
     }
+    setIsEditing(false);
   };
 
   const handleAvatarUpload = async (e) => {
@@ -237,33 +249,43 @@ export default function Profile() {
       <div className="max-w-2xl mx-auto px-4 pt-8">
         <h1 className="text-2xl font-bold text-black mb-6">Profile</h1>
 
-        {displayProfile && (displayProfile.name || displayProfile.bio || displayProfile.skills?.length) && (
-          <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-100 p-6 mb-8 animate-fade-in">
-            <h2 className="text-sm font-medium text-founder-purple mb-4">Your unified profile</h2>
-            <div className="flex gap-4 items-start">
-              <div className="w-16 h-16 rounded-xl bg-founder-purple/20 flex items-center justify-center text-founder-purple text-xl font-bold flex-shrink-0">
-                {(displayProfile.name || '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-lg text-black">{displayProfile.name || 'Anonymous'}</h3>
-                {(displayProfile.university || displayProfile.graduationYear) && (
-                  <p className="text-sm text-purple-600 mt-0.5">
-                    {[displayProfile.university, displayProfile.graduationYear].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-                {displayProfile.bio && <p className="text-sm text-gray-700 mt-2">{displayProfile.bio}</p>}
-                {(displayProfile.skills || []).length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {displayProfile.skills.map((s) => (
-                      <SkillTag key={s} label={s} active />
-                    ))}
-                  </div>
-                )}
+        {!isEditing && displayProfile && (displayProfile.name || displayProfile.bio || displayProfile.skills?.length) && (
+          <>
+            <div className="rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-100 p-6 mb-6 animate-fade-in">
+              <h2 className="text-sm font-medium text-founder-purple mb-4">Your unified profile</h2>
+              <div className="flex gap-4 items-start">
+                <div className="w-16 h-16 rounded-xl bg-founder-purple/20 flex items-center justify-center text-founder-purple text-xl font-bold flex-shrink-0">
+                  {(displayProfile.name || '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg text-black">{displayProfile.name || 'Anonymous'}</h3>
+                  {(displayProfile.university || displayProfile.graduationYear) && (
+                    <p className="text-sm text-purple-600 mt-0.5">
+                      {[displayProfile.university, displayProfile.graduationYear].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {displayProfile.bio && <p className="text-sm text-gray-700 mt-2">{displayProfile.bio}</p>}
+                  {(displayProfile.skills || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {displayProfile.skills.map((s) => (
+                        <SkillTag key={s} label={s} active />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-all mb-8"
+            >
+              Edit
+            </button>
+          </>
         )}
 
+        {isEditing && (
         <form onSubmit={handleSave} className="space-y-6">
           <div className="flex gap-6 items-start">
             <div className="w-24 h-24 rounded-2xl bg-founder-card border border-[var(--border)] flex items-center justify-center overflow-hidden">
@@ -512,14 +534,34 @@ export default function Profile() {
           )}
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-3 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white font-medium transition disabled:opacity-50"
+              className="flex-1 py-3 rounded-xl bg-founder-purple hover:bg-founder-purpleLight text-white font-medium transition disabled:opacity-50"
             >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-6 py-3 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
+        )}
+
+        {!displayProfile?.name && !displayProfile?.bio && !displayProfile?.skills?.length && !isEditing && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="px-4 py-2 rounded-xl bg-founder-purple text-white font-medium hover:bg-founder-purpleLight transition-all"
+          >
+            Add your profile
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import Fuse from 'fuse.js';
 import { api } from '../utils/api';
 import { ProjectCard } from '../components/ProjectCard';
 import { DEMO_PROJECTS, PROJECT_TAGS } from '../data/demoData';
@@ -7,7 +8,9 @@ import { useDemoProjects } from '../context/DemoProjectsContext';
 
 export function Feed() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { demoProjects } = useDemoProjects();
+  const highlightProjectId = location.state?.highlightProjectId;
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nextKey, setNextKey] = useState(null);
@@ -15,16 +18,25 @@ export function Feed() {
   const [activeFilters, setActiveFilters] = useState([]);
 
   const fetchFeed = async (append = false) => {
+    const hasApi = !!import.meta.env.VITE_API_URL;
     try {
-      const params = nextKey && append ? { lastKey: nextKey } : {};
-      const { data } = await api.get('/projects/feed', { params });
-      if (data?.success && data?.data?.projects?.length > 0) {
-        const { projects: list, nextKey: nk } = data.data;
-        setProjects((prev) => (append ? [...prev, ...list] : list));
-        setNextKey(nk || null);
-      } else if (!append) {
+      if (!hasApi && !append) {
         setProjects(DEMO_PROJECTS);
         setNextKey(null);
+      } else {
+        const params = nextKey && append ? { lastKey: nextKey } : {};
+        const { data } = await api.get('/projects/feed', {
+          params,
+          timeout: 8000,
+        });
+        if (data?.success && data?.data?.projects?.length > 0) {
+          const { projects: list, nextKey: nk } = data.data;
+          setProjects((prev) => (append ? [...prev, ...list] : list));
+          setNextKey(nk || null);
+        } else if (!append) {
+          setProjects(DEMO_PROJECTS);
+          setNextKey(null);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -45,23 +57,48 @@ export function Feed() {
 
   const filteredProjects = useMemo(() => {
     let list = allProjects;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.title?.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q) ||
-          (p.techStack || []).some((t) => t.toLowerCase().includes(q)) ||
-          (p.tags || []).some((t) => t.toLowerCase().includes(q))
-      );
-    }
     if (activeFilters.length > 0) {
       list = list.filter((p) =>
         (p.tags || []).some((t) => activeFilters.includes(t))
       );
     }
+    if (searchQuery.trim()) {
+      try {
+        const fuse = new Fuse(list, {
+          keys: ['title', 'description', 'techStack', 'tags'],
+          threshold: 0.4,
+        });
+        const results = fuse.search(searchQuery);
+        list = results.map((r) => r.item);
+      } catch (err) {
+        console.error('Fuse search error:', err);
+        const q = searchQuery.toLowerCase();
+        list = list.filter(
+          (p) =>
+            p.title?.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q) ||
+            (p.techStack || []).some((t) => t?.toLowerCase?.().includes(q)) ||
+            (p.tags || []).some((t) => t?.toLowerCase?.().includes(q))
+        );
+      }
+    }
     return list;
   }, [allProjects, searchQuery, activeFilters]);
+
+  const hasScrolledToHighlight = useRef(false);
+  useEffect(() => {
+    if (!highlightProjectId || hasScrolledToHighlight.current) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`project-${highlightProjectId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-founder-purple', 'ring-offset-2');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-founder-purple', 'ring-offset-2'), 2500);
+        hasScrolledToHighlight.current = true;
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [highlightProjectId, filteredProjects]);
 
   const toggleFilter = (tag) => {
     setActiveFilters((prev) =>
@@ -119,7 +156,9 @@ export function Feed() {
       </div>
       <div className="space-y-4">
         {filteredProjects.map((p) => (
-          <ProjectCard key={p.projectId} project={p} onLike={handleLike} />
+          <div key={p.projectId} id={`project-${p.projectId}`} className="scroll-mt-24 rounded-2xl transition-all duration-300">
+            <ProjectCard project={p} onLike={handleLike} />
+          </div>
         ))}
       </div>
       {nextKey && (

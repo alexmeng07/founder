@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDemoProjects } from '../context/DemoProjectsContext';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../utils/api';
 import { PROJECT_TAGS } from '../data/demoData';
 
 const ROLES = ['Frontend', 'Backend', 'AI/ML', 'Designer', 'PM', 'Pitcher'];
@@ -16,6 +17,7 @@ export function BecomeFounder() {
   const { addDemoProject } = useDemoProjects();
   const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -53,20 +55,54 @@ export function BecomeFounder() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    addDemoProject({
-      title: form.title.trim(),
-      description: form.description || '',
-      techStack: form.techStack,
-      rolesNeeded: form.rolesNeeded,
-      goal: form.goal,
-      tags: form.tags,
-      teamSizeTarget: form.teamSizeTarget,
-    });
-    setSubmitted(true);
-    navigate('/feed');
+    setSubmitting(true);
+    try {
+      if (user) {
+        const { data } = await api.post('/projects', {
+          title: form.title.trim(),
+          description: form.description || '',
+          techStack: form.techStack,
+          rolesNeeded: form.rolesNeeded,
+          goal: form.goal,
+          tags: form.tags,
+          teamSizeTarget: form.teamSizeTarget,
+        });
+        if (data?.success && data?.data?.projectId) {
+          setSubmitted(true);
+          navigate('/feed', { state: { highlightProjectId: data.data.projectId } });
+          return;
+        }
+      }
+      const newProject = addDemoProject({
+        title: form.title.trim(),
+        description: form.description || '',
+        techStack: form.techStack,
+        rolesNeeded: form.rolesNeeded,
+        goal: form.goal,
+        tags: form.tags,
+        teamSizeTarget: form.teamSizeTarget,
+      });
+      setSubmitted(true);
+      navigate('/feed', { state: { highlightProjectId: newProject.projectId } });
+    } catch (err) {
+      console.error(err);
+      const newProject = addDemoProject({
+        title: form.title.trim(),
+        description: form.description || '',
+        techStack: form.techStack,
+        rolesNeeded: form.rolesNeeded,
+        goal: form.goal,
+        tags: form.tags,
+        teamSizeTarget: form.teamSizeTarget,
+      });
+      setSubmitted(true);
+      navigate('/feed', { state: { highlightProjectId: newProject.projectId } });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -207,9 +243,10 @@ export function BecomeFounder() {
           </div>
           <button
             type="submit"
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-founder-purple to-founder-purpleLight text-white font-semibold hover:shadow-lg hover:shadow-founder-purple/30 transition-all"
+            disabled={submitting}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-founder-purple to-founder-purpleLight text-white font-semibold hover:shadow-lg hover:shadow-founder-purple/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Submit proposal
+            {submitting ? 'Submitting…' : 'Submit proposal'}
           </button>
         </form>
       </div>

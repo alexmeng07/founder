@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export function Landing() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const fromLogo = location.state?.fromLogo === true;
   const [displayText, setDisplayText] = useState('');
   const fullText = 'founder';
   const [phase, setPhase] = useState(0);
@@ -28,8 +32,9 @@ export function Landing() {
           {displayText}
           {phase === 1 && <span className="animate-blink">.</span>}
         </h1>
-        <p className="text-xl text-gray-600 mb-10 opacity-0 animate-fade-in" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>
-          build technical connections
+        <p className="text-sm text-gray-800 font-sans mb-10 opacity-0 animate-fade-in leading-relaxed" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>
+          Swipe to find your collaborator.<br />
+          Scroll to find your next project.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center opacity-0 animate-fade-in" style={{ animationDelay: '1.2s', animationFillMode: 'forwards' }}>
           <Link
@@ -38,12 +43,14 @@ export function Landing() {
           >
             Become a founder.
           </Link>
-          <Link
-            to="/auth"
-            className="px-8 py-4 rounded-xl border-2 border-founder-purple text-founder-purple font-semibold hover:bg-founder-purple/5 transition-all"
-          >
-            Sign in
-          </Link>
+          {!user && !fromLogo && (
+            <Link
+              to="/auth"
+              className="px-8 py-4 rounded-xl border-2 border-founder-purple text-founder-purple font-semibold hover:bg-founder-purple/5 transition-all"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </div>
     </div>
