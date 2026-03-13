@@ -1,0 +1,1 @@
+{"appId":"d1dqx71pj16cai","customRules":[{"source":"</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>","target":"/index.html","status":"200"}]}
