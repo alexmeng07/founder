@@ -6,7 +6,6 @@ export function MatchModal({ user, onClose }) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
   const [composed, setComposed] = useState(false);
 
   const handleCompose = async () => {
@@ -25,21 +24,9 @@ export function MatchModal({ user, onClose }) {
     }
   };
 
-  const handleSend = async () => {
-    if (!draft.trim() || sending) return;
-    setSending(true);
-    try {
-      await api.post('/outreach/send', {
-        toUserId: user.userId,
-        body: draft,
-      });
-      onClose();
-      navigate('/swipe');
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSending(false);
-    }
+  const handleDone = () => {
+    onClose();
+    navigate('/swipe');
   };
 
   const initials = (user?.name || '?')
@@ -84,11 +71,10 @@ export function MatchModal({ user, onClose }) {
               placeholder="Edit your message..."
             />
             <button
-              onClick={handleSend}
-              disabled={sending}
+              onClick={handleDone}
               className="w-full py-3 rounded-xl bg-founder-accent text-white font-medium hover:bg-founder-accentHover disabled:opacity-50"
             >
-              {sending ? 'Sending…' : 'Send'}
+              Done
             </button>
           </div>
         )}

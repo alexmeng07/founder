@@ -6,9 +6,6 @@ Parameters:
   Stage:
     Type: String
     Default: dev
-  SenderEmail:
-    Type: String
-    Description: Verified SES email for sending notifications
   GitHubApiToken:
     Type: String
     Default: ''
@@ -148,6 +145,7 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       Name: !Sub founder-${Stage}-api
+      StageName: Prod
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization'"
@@ -326,7 +324,6 @@ Resources:
         Variables:
           SWIPES_TABLE: !Ref SwipesTable
           SNS_TOPIC_ARN: !Ref MatchesTopic
-          SENDER_EMAIL: !Ref SenderEmail
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref SwipesTable
@@ -396,7 +393,6 @@ Resources:
         Variables:
           PROJECTS_TABLE: !Ref ProjectsTable
           USERS_TABLE: !Ref UsersTable
-          SENDER_EMAIL: !Ref SenderEmail
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ProjectsTable
@@ -419,7 +415,6 @@ Resources:
       Environment:
         Variables:
           USERS_TABLE: !Ref UsersTable
-          SENDER_EMAIL: !Ref SenderEmail
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
@@ -427,31 +422,6 @@ Resources:
           Statement:
             - Effect: Allow
               Action: bedrock:InvokeModel
-              Resource: '*'
-
-  SendOutreachFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions/sendOutreach/
-      Handler: index.handler
-      Events:
-        SendOutreach:
-          Type: Api
-          Properties:
-            RestApiId: !Ref Api
-            Path: /outreach/send
-            Method: post
-      Environment:
-        Variables:
-          SENDER_EMAIL: !Ref SenderEmail
-          USERS_TABLE: !Ref UsersTable
-      Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref UsersTable
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: ses:SendEmail
               Resource: '*'
 
   # ─── Lambda: Feed Refresh (EventBridge) ────────────────────────────────────
